@@ -1,7 +1,12 @@
+import random
+import string
 from typing import List, Callable, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Body, Depends, HTTPException
+from starlette.requests import Request
+from starlette.responses import Response
 
+from app.core.adaptor.DbAdaptor import DbAdaptor
 from app.core.module_class import Module, TableModule, ApiModule
 from app.core.module_class.SecurityModule import SecurityModule
 from app.modules.simple_key.table import SimpleKeyTable
@@ -13,14 +18,36 @@ class SimpleKey(ApiModule, SecurityModule, TableModule):
     is_need_to_check_key = True
 
     def _register_api_bp(self, bp: APIRouter):
-        pass
+        @bp.post('/create', summary='キーを作成する')
+        def create(dba: DbAdaptor = Depends(DbAdaptor(SimpleKeyTable).dba),
+                   name: str = Body(..., embed=True)):
+            # ランダムなキーを作成
+            key = ''.join(random.sample(string.ascii_letters + string.digits, 32))
+            data = SimpleKeyTable(name=name, key=key)
+            dba.add(data)
+            return data
 
     def get_table(self) -> list:
         return [SimpleKeyTable]
 
     def get_filters(self, module: Module) -> List[Callable]:
-        def simple_filter(key: Optional[str] = None):
-            ...
+        def simple_filter(request: Request, response: Response,
+                          dba: DbAdaptor = Depends(DbAdaptor(SimpleKeyTable).dba),
+                          sec_key: Optional[str] = None):
+            # データベースがまっ空きの時にadminというキーを作成
+            if len(dba.read_all()) < 1:
+                dba.add(SimpleKeyTable(name='admin', key='admin'))
+
+            if sec_key is not None:
+                # sec_keyがある時にクッキーに保存しておく
+                response.set_cookie(key='sec_key', value=sec_key)
+            elif 'sec_key' in request.cookies:
+                # sec_keyがない時にリクエストから探す
+                sec_key = request.cookies['sec_key']
+            data = dba.read_by(key=sec_key)
+            if data is None:
+                # 権限不足の為わざとエラーを起こす
+                raise HTTPException(403, 'forbidden')
 
         return [simple_filter]
 
