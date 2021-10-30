@@ -7,6 +7,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from app.core.adaptor.DbAdaptor import DbAdaptor
+from app.core.adaptor.ListAdaptor import ListAdaptor
 from app.core.module_class import Module, TableModule, ApiModule
 from app.core.module_class.SecurityModule import SecurityModule
 from app.modules.simple_key.table import SimpleKeyTable
@@ -31,6 +32,14 @@ class SimpleKey(ApiModule, SecurityModule, TableModule):
         def delete(name: str,
                    dba: DbAdaptor = Depends(DbAdaptor(SimpleKeyTable).dba), ):
             return dba.delete_by(name=name)
+
+        @bp.get('/ls')
+        def ls(list_adaptor: ListAdaptor = Depends()):
+            def map_filter(inp: dict):
+                del inp['key']
+                return inp
+
+            return list_adaptor.search(SimpleKeyTable, map_filter)
 
     def get_table(self) -> list:
         return [SimpleKeyTable]
