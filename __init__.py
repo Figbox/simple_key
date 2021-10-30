@@ -27,6 +27,11 @@ class SimpleKey(ApiModule, SecurityModule, TableModule):
             dba.add(data)
             return data
 
+        @bp.delete('/delete')
+        def delete(name: str,
+                   dba: DbAdaptor = Depends(DbAdaptor(SimpleKeyTable).dba), ):
+            return dba.delete_by(name=name)
+
     def get_table(self) -> list:
         return [SimpleKeyTable]
 
